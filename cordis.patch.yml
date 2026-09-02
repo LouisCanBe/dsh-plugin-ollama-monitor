@@ -9,4 +9,4 @@
         defaultModel: ''
         defaultPrompt: '用一句话解释什么是操作系统。'
         numPredict: 128
-        timeoutMs: 120000
+        timeoutMs: 300000

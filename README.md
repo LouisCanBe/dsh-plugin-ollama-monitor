@@ -36,7 +36,7 @@ allowBuilds:
 | `defaultModel` | `''` | 面板默认选中模型 |
 | `defaultPrompt` | `用一句话解释什么是操作系统。` | 默认测速提示词 |
 | `numPredict` | `128` | 默认最大生成 token 数 |
-| `timeoutMs` | `120000` | 请求超时（毫秒） |
+| `timeoutMs` | `300000` | 请求超时（毫秒；大模型冷加载慢，默认已放宽） |
 
 覆盖示例（写入你自己的 `~/.dsh/cordis.patch.yml` 或 profile 层；**patch 替换整份 config，必须重述全部键**）：
 
@@ -47,7 +47,7 @@ allowBuilds:
     defaultModel: ''
     defaultPrompt: '用一句话解释什么是操作系统。'
     numPredict: 128
-    timeoutMs: 120000
+    timeoutMs: 300000
 ```
 
 ## 验证 / 卸载

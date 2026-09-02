@@ -41,7 +41,7 @@ export const Config = z.object({
   defaultModel: z.string().default(''),
   defaultPrompt: z.string().default('用一句话解释什么是操作系统。'),
   numPredict: z.number().default(128),
-  timeoutMs: z.number().default(120_000),
+  timeoutMs: z.number().default(300_000),
   historyPath: z.string().default(join(homedir(), '.dsh', 'ollama-monitor-history.jsonl')),
   dashboardPath: z.string().default(join(homedir(), '.dsh', 'ollama-dashboard.html')),
 })
@@ -62,6 +62,29 @@ function round(n: number | undefined, digits = 1): number | undefined {
 
 function bytesToGb(bytes: unknown): number | undefined {
   return typeof bytes === 'number' && bytes > 0 ? round(bytes / 1024 ** 3, 2) : undefined
+}
+
+/** 递归剪除 undefined 值的键与数组项 —— DSH 工具运行时做无损 JSON 校验，
+ *  "键存在但值为 undefined" 会被整体拒绝（value is not lossless JSON）。 */
+function pruneUndefined<T>(value: T): T {
+  if (Array.isArray(value)) return value.filter((v) => v !== undefined).map((v) => pruneUndefined(v)) as unknown as T
+  if (value && typeof value === 'object') {
+    const obj = value as Record<string, unknown>
+    for (const k of Object.keys(obj)) {
+      if (obj[k] === undefined) delete obj[k]
+      else obj[k] = pruneUndefined(obj[k])
+    }
+  }
+  return value
+}
+
+/** 与 defineTool 同参：返回一个 execute 结果先剪除 undefined 的工具定义。
+ *  所有工具统一走这里注册，杜绝"键存在、值为 undefined"的无损 JSON 失败。 */
+function defineToolSafe(def: { execute?: (...a: any[]) => any; [k: string]: any }): any {
+  return defineTool({
+    ...def,
+    execute: async (...a: any[]) => pruneUndefined(await def.execute!(...a)),
+  })
 }
 
 /** 把任意 fetch 失败翻译成带排查提示的错误。 */
@@ -387,7 +410,7 @@ export function apply(ctx: Context, config: Config) {
 
   // -- 工具 1: 状态总览 ------------------------------------------------------
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_status',
     description:
       '查看本机 Ollama 状态：已安装/已加载的模型、显存(RAM/VRAM)占用、每个模型的架构上下文上限(context length)。用于回答"我的机器上跑哪些模型、还能开多大上下文"。',
@@ -457,7 +480,7 @@ export function apply(ctx: Context, config: Config) {
 
   // -- 工具 2: 测速 ----------------------------------------------------------
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_bench',
     description:
       '对本机 Ollama 跑一次流式生成来测速：首 token 延迟(TTFT)、提示词处理速度、生成速度(tok/s)、总耗时。可用 num_ctx 指定上下文长度对比不同设置下的速度。',
@@ -542,11 +565,12 @@ export function apply(ctx: Context, config: Config) {
         options_used: options,
         preview: sample.generatedChars > 0 ? undefined : '(本次输出全部为隐藏思考过程(thinking)，response 无可见文本)',
       }
-      // 自动记录到历史文件（失败不影响测速本身）。
+      // 自动记录到历史文件（失败不影响测速本身）。保留 options_used（含 num_ctx），
+      // 否则历史无法区分不同上下文设置（issue #1 附带发现 3）。
       await mkdir(dirname(config.historyPath), { recursive: true }).catch(() => {})
       void appendFile(
         config.historyPath,
-        JSON.stringify({ ts: new Date().toISOString(), ...result, options_used: undefined }) + '\n',
+        JSON.stringify({ ts: new Date().toISOString(), ...result }) + '\n',
         'utf8',
       ).catch(() => {})
       return result
@@ -555,7 +579,7 @@ export function apply(ctx: Context, config: Config) {
 
   // -- 工具 3: 拉取模型 ------------------------------------------------------
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_pull',
     description:
       '在 Ollama 服务器上拉取(pull)一个模型，下载发生在服务器端。遇到反向代理超时(如 Cloudflare 100s)会自动断点续传重试，直到完成或达到总时长上限。重复调用会从断点继续。',
@@ -1141,7 +1165,7 @@ export function apply(ctx: Context, config: Config) {
     }
   }
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_models',
     description: '查看 Ollama 官方库里能拉取的模型列表（可按关键词过滤，标记本机已安装的）。数据来自官方注册表并缓存 24 小时。',
     parameters: {
@@ -1178,7 +1202,7 @@ export function apply(ctx: Context, config: Config) {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_codepk',
     description: '创建编程评测(PK)任务：让多个模型同答一套 JavaScript 算法题（8 题含边界断言），真实执行判分。后台异步执行，结束后自动写入历史并刷新 HTML 面板。用 ollama_eval_status 查进度。',
     parameters: {
@@ -1201,7 +1225,7 @@ export function apply(ctx: Context, config: Config) {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_eval_status',
     description: '查看编程评测任务的进度和结果：传 task_id 看指定任务，不传看全部任务列表。',
     parameters: {
@@ -1229,7 +1253,7 @@ export function apply(ctx: Context, config: Config) {
     },
   }))
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_compare',
     description: '查看所有历史测速记录的对比表：每个模型的最新/最佳生成速度、TTFT、测试次数。数据来自 ollama_bench 的自动记录。',
     parameters: {},
@@ -1325,7 +1349,7 @@ export function apply(ctx: Context, config: Config) {
     return { path: config.dashboardPath, models: installed.length, history_entries: history.length }
   }
 
-  ctx.tools.register(defineTool({
+  ctx.tools.register(defineToolSafe({
     name: 'ollama_dashboard',
     description: '生成一个可在浏览器打开的 HTML 面板（已安装模型、显存分布、测速历史、上下文曲线、编程评测、可拉取模型目录）。每次调用用最新数据覆盖；评测任务完成时也会自动刷新。',
     parameters: {},

@@ -1,7 +1,7 @@
 {
   "name": "ollama-monitor",
   "description": "Ollama 监控与测评平台：node 半侧提供 DSH 工具，web 半侧提供设置页内的交互面板",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "ollama", "llm", "monitoring"],
   "type": "module",
   "main": "./lib/index.js",
