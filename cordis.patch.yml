@@ -1,0 +1,12 @@
+# 本组合包的配置层：profile 安装本包后自动应用这一层。
+# 用户可在自己的 cordis.patch.yml（profile 或 home 层）按 id 覆盖：
+# 注意 patch 会替换目标行的整份 config，覆盖时必须重述所有键。
+- insert:
+    - id: ollama-monitor
+      name: ollama-monitor
+      config:
+        host: 'http://127.0.0.1:11434'
+        defaultModel: ''
+        defaultPrompt: '用一句话解释什么是操作系统。'
+        numPredict: 128
+        timeoutMs: 120000

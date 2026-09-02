@@ -1,0 +1,34 @@
+{
+  "name": "ollama-monitor",
+  "description": "Ollama 监控与测评平台：node 半侧提供 DSH 工具，web 半侧提供设置页内的交互面板",
+  "version": "0.3.2",
+  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "ollama", "llm", "monitoring"],
+  "type": "module",
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib", "cordis.patch.yml"],
+  "license": "MIT",
+  "author": "LouisCanBe",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LouisCanBe/dsh-plugin-ollama-monitor.git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "node build.mjs",
+    "prepare": "node build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.12"
+  },
+  "dsh": {
+    "bundle": { "patch": "./cordis.patch.yml" },
+    "client": { "platform": "web", "inject": [], "external": [] }
+  }
+}
